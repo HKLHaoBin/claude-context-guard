@@ -32,6 +32,7 @@ $secrets = @(
 )
 $tracked = & git -C $root ls-files
 foreach ($path in $tracked) {
+  if ($path -eq 'scripts/validate.ps1') { continue }
   $content = Get-Content -LiteralPath (Join-Path $root $path) -Raw -ErrorAction Stop
   foreach ($pattern in $secrets) {
     if ($content.Contains($pattern)) { throw "Potential sensitive pattern '$pattern' in $path" }
