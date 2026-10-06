@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File hooks/powershell/context-guard.ps1"
+      }
+    ]
+  },
+  "notes": [
+    "Confirm the exact Hook schema and supported output fields for your release.",
+    "Start with CLAUDE_CONTEXT_GUARD_MODE=warn before considering block."
+  ]
+}
