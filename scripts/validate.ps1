@@ -3,19 +3,50 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$skill = Join-Path $root 'skills/claude-context-guard/SKILL.md'
+$skillRoot = Join-Path $root 'skills'
+$manifestPath = Join-Path $skillRoot 'manifest.json'
 $settings = Join-Path $root 'examples/settings.env.json'
 $hooks = Join-Path $root 'examples/hooks.json'
 $hookScript = Join-Path $root 'hooks/powershell/context-guard.ps1'
 $hookTests = Join-Path $root 'hooks/powershell/context-guard.tests.ps1'
 
-foreach ($path in @($skill, $settings, $hooks, $hookScript, $hookTests)) {
+foreach ($path in @($manifestPath, $settings, $hooks, $hookScript, $hookTests)) {
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing required file: $path" }
 }
 
-$frontmatter = Get-Content -LiteralPath $skill -Raw
-if ($frontmatter -notmatch '(?ms)^---\s*\r?\nname:\s*[a-z0-9-]+\s*\r?\n') { throw 'Skill frontmatter is invalid' }
-if (($frontmatter -split '\r?\n').Count -gt 500) { throw 'Skill exceeds 500 lines' }
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if ($manifest.schemaVersion -ne 1) { throw 'Unsupported skill manifest schema' }
+if (-not $manifest.skills -or $manifest.skills.Count -lt 1) { throw 'Skill manifest is empty' }
+
+$seenNames = @{}
+foreach ($entry in $manifest.skills) {
+  if ([string]::IsNullOrWhiteSpace($entry.name) -or $entry.name -notmatch '^[a-z0-9]+(?:-[a-z0-9]+)*$') {
+    throw "Invalid skill name in manifest: $($entry.name)"
+  }
+  if ($seenNames.ContainsKey($entry.name)) { throw "Duplicate skill name: $($entry.name)" }
+  $seenNames[$entry.name] = $true
+
+  $skillPath = Join-Path $root $entry.path
+  $entryPath = Join-Path $root $entry.entry
+  if (-not (Test-Path -LiteralPath $skillPath -PathType Container)) { throw "Missing skill directory: $($entry.path)" }
+  if (-not (Test-Path -LiteralPath $entryPath -PathType Leaf)) { throw "Missing skill entry: $($entry.entry)" }
+  if ((Split-Path -Leaf $skillPath) -ne $entry.name) { throw "Skill directory does not match name: $($entry.path)" }
+
+  $skillText = Get-Content -LiteralPath $entryPath -Raw
+  if ($skillText -notmatch '(?ms)^---\s*\r?\nname:\s*([a-z0-9]+(?:-[a-z0-9]+)*)\s*\r?\n') { throw "Skill frontmatter is invalid: $($entry.entry)" }
+  if ($Matches[1] -ne $entry.name) { throw "Skill frontmatter name does not match manifest: $($entry.entry)" }
+  if ($skillText -notmatch '(?m)^description:\s*\S') { throw "Skill description is missing: $($entry.entry)" }
+  if (($skillText -split '\r?\n').Count -gt 500) { throw "Skill exceeds 500 lines: $($entry.entry)" }
+
+  foreach ($relative in @($entry.files)) {
+    $listedPath = Join-Path $skillPath ($relative -replace '/', [IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath $listedPath -PathType Leaf)) { throw "Manifest file is missing: $($entry.name)/$relative" }
+  }
+}
+
+$actualSkillDirs = @(Get-ChildItem -LiteralPath $skillRoot -Directory | Select-Object -ExpandProperty Name)
+$manifestSkillDirs = @($manifest.skills | ForEach-Object { Split-Path -Leaf $_.path })
+if (@(Compare-Object $actualSkillDirs $manifestSkillDirs).Count -gt 0) { throw 'Skill directories and manifest entries differ' }
 
 foreach ($jsonPath in @($settings, $hooks)) {
   Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json | Out-Null
@@ -30,21 +61,24 @@ $secrets = @(
   '127.0.0.1:',
   'C:\Users\'
 )
-$tracked = & git -C $root ls-files
-foreach ($path in $tracked) {
+$files = Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
+  $_.FullName -notmatch '[\\/]\.git[\\/]'
+}
+foreach ($file in $files) {
+  $path = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
   if ($path -eq 'scripts/validate.ps1') { continue }
-  $content = Get-Content -LiteralPath (Join-Path $root $path) -Raw -ErrorAction Stop
+  $content = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction Stop
   foreach ($pattern in $secrets) {
     if ($content.Contains($pattern)) { throw "Potential sensitive pattern '$pattern' in $path" }
   }
 }
 
 if (Get-Command powershell.exe -ErrorAction SilentlyContinue) {
-  $parseErrors = $null
-  [System.Management.Automation.Language.Parser]::ParseFile($hookScript, [ref]$null, [ref]$parseErrors) | Out-Null
-  if ($parseErrors.Count -gt 0) { throw "Hook script has PowerShell parse errors" }
-  [System.Management.Automation.Language.Parser]::ParseFile($hookTests, [ref]$null, [ref]$parseErrors) | Out-Null
-  if ($parseErrors.Count -gt 0) { throw "Hook test script has PowerShell parse errors" }
+  foreach ($path in @($hookScript, $hookTests)) {
+    $parseErrors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$parseErrors) | Out-Null
+    if ($parseErrors.Count -gt 0) { throw "PowerShell parse errors: $path" }
+  }
 }
 
 'PASS: repository validation'

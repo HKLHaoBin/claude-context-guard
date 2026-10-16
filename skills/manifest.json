@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "name": "claude-context-guard",
+      "path": "skills/claude-context-guard",
+      "entry": "skills/claude-context-guard/SKILL.md",
+      "files": ["SKILL.md"],
+      "invocation": "explicit",
+      "hostDependencies": ["Claude Code hooks or equivalent stdin hook runner"],
+      "notice": "root"
+    },
+    {
+      "name": "review-bugbot",
+      "path": "skills/review-bugbot",
+      "entry": "skills/review-bugbot/SKILL.md",
+      "files": ["SKILL.md"],
+      "invocation": "explicit",
+      "hostDependencies": ["bugbot subagent"],
+      "notice": "skills/NOTICE.md"
+    },
+    {
+      "name": "diagnosing-bugs",
+      "path": "skills/diagnosing-bugs",
+      "entry": "skills/diagnosing-bugs/SKILL.md",
+      "files": ["SKILL.md", "scripts/hitl-loop.template.sh"],
+      "invocation": "model-discoverable",
+      "hostDependencies": ["shell, debugger, test, or equivalent feedback loop"],
+      "notice": "skills/NOTICE.md"
+    }
+  ]
+}

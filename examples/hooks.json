@@ -2,13 +2,20 @@
   "hooks": {
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File hooks/powershell/context-guard.ps1"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/context-guard.ps1",
+            "args": [],
+            "timeout": 30
+          }
+        ]
       }
     ]
   },
   "notes": [
-    "Confirm the exact Hook schema and supported output fields for your release.",
-    "Start with CLAUDE_CONTEXT_GUARD_MODE=warn before considering block."
+    "UserPromptSubmit does not guarantee usage fields; the guard fails open unless a compatible host or wrapper supplies them.",
+    "Start with CLAUDE_CONTEXT_GUARD_MODE=warn before considering block.",
+    "PreCompact can inspect or block an already requested compaction; it cannot initiate /compact."
   ]
 }
