@@ -1,86 +1,139 @@
-# Claude Context Guard
+# Claude Code integration
 
-Practical diagnostics and safe guardrails for Claude Code sessions whose **effective context window differs from the UI label**, or that fail with a request-size `413`.
+This repository is a community reference implementation. The commands, settings, hook payloads, and host tools described here depend on the Claude Code release and host that runs them. Verify behavior in your installation before using a blocking guard.
 
-This repository is intentionally conservative: it documents supported behavior, labels version-sensitive internals, and provides a hook that can warn or stop before a risky request. It does **not** modify conversation databases, launch a second Claude process against the active session, or pretend that a hook can invoke the current session's `/compact` command.
+## Auto-compaction settings
 
-## The short version
+Claude Code supports several different controls. They are not interchangeable:
 
-1. Find the evidence behind the failure. A token/context error and an HTTP body/attachment error are different problems.
-2. Treat the smallest confirmed provider limit as the hard limit. Leave room for system prompts, tools, and the next response.
-3. Prefer Claude Code's runtime auto-compaction. An environment override can lower the runtime's target on versions that support it:
+| Control | Purpose | Notes |
+| --- | --- | --- |
+| `/autocompact 500k` or `/autocompact auto` | Set or restore the current model's compaction window | Applies immediately when no higher-priority setting overrides it. |
+| `--autocompact 500k` | Set the window for one launch | Takes precedence over saved settings for that launch. |
+| `autoCompactWindow` | Configure a general settings-file window | A model-specific saved value can take precedence within the same settings file. |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Set a plain integer token window | Takes precedence over `/autocompact`, `--autocompact`, and settings. Supported values are documented as roughly 100,000–1,000,000 and are capped by the active model. |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | Request earlier compaction | It can lower the trigger percentage, but cannot raise the normal threshold. |
+| `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | Override the context size Claude Code assumes for a model | Especially relevant for gateways or custom model IDs; this is not the compaction target. |
+| `CLAUDE_CODE_MAX_OUTPUT_TOKENS` | Limit response output | A larger output allowance leaves less effective room before compaction. |
 
-   ```json
-   {
-     "env": {
-       "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "160000"
-     }
-   }
-   ```
-
-   `160000` is an example, not a universal answer. Choose it from your provider's confirmed limit and verify the result in the transcript.
-4. Use the included Skill for a repeatable diagnosis and the Hook only as a guard. A `UserPromptSubmit` hook can inspect input and block or explain; it is not a supported `/compact` launcher.
-5. If the error says `Request too large (max 32MB)` and mentions accumulated images or attachments, remove or avoid re-sending those attachments. Token compaction alone may not remove them.
-
-## Contents
-
-- [Diagnosis](docs/diagnosis.md)
-- [Claude Code integration](docs/claude-code-integration.md)
-- [Verification](docs/verification.md)
-- [Reusable Skill](skills/claude-context-guard/SKILL.md)
-- [Hook guide and limitations](hooks/README.md)
-- [PowerShell Hook](hooks/powershell/context-guard.ps1)
-- [Configuration examples](examples/)
-
-## Install the Skill
-
-Project-local installation:
+For example, a gateway known to accept only 200,000 tokens may use:
 
 ```powershell
-Copy-Item -Recurse skills/claude-context-guard .claude/skills/claude-context-guard
+$env:CLAUDE_CODE_AUTO_COMPACT_WINDOW = '160000'
+$env:CLAUDE_CODE_MAX_CONTEXT_TOKENS = '200000'
 ```
 
-User-wide installation:
+`160000` is only a conservative example. Derive the target from the smallest confirmed provider/gateway limit, then reserve space for system prompts, tools, and the next response. Do not use a fixed value merely because a UI label says `1M`.
 
-```powershell
-Copy-Item -Recurse skills/claude-context-guard "$HOME/.claude/skills/claude-context-guard"
+Verify the active model and setting with `/status` and `/autocompact`. If the environment variable wins, Claude Code reports that it overrides other changes. Observe an actual compaction boundary or a controlled, non-sensitive workload; do not intentionally overflow a valuable session.
+
+## Hook boundary
+
+The current Hook configuration shape is event → matcher group → nested handlers. `UserPromptSubmit` and `PostCompact` do not use matchers; `PreCompact` accepts `manual` and `auto`.
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/context-guard.ps1",
+            "args": [],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/before-compact.ps1"
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
 
-Then invoke it explicitly when diagnosing a session, for example:
+A hook can reject a submitted prompt or block a compaction that was already requested. It cannot initiate `/compact`. `PostCompact` is observational and runs after compaction.
+
+The standard `UserPromptSubmit` payload contains prompt/session fields, not a guaranteed token `usage` object. The included PowerShell guard accepts several usage aliases so a host or wrapper can inject them, and deliberately fails open when they are absent. Its offline fixtures are custom payloads, not a promise about the live event schema.
+
+## Goal surfaces
+
+Use the official session-scoped command for ordinary Claude Code work:
 
 ```text
-/claude-context-guard Diagnose the current session before the next request.
+/goal tests pass, `git diff --check` is clean, and only the intended files changed; stop after 20 turns if this cannot be achieved
 ```
 
-Skill discovery and invocation syntax can vary by Claude Code release; the files are plain Markdown and can also be used as a checklist manually.
+The condition should have one measurable end state, a check that Claude runs and shows in the conversation, material constraints, and an optional turn/time bound. `/goal` is one condition per session; `/goal` shows it and `/goal clear` removes it. Resume restores an active condition but resets its timer and counters. Background work can defer evaluation and check-ins can retry or pause depending on the installed release.
 
-## Install the Hook
+See [Goal methodology](docs/goal-methodology.md) for evidence rules and the distinction between official `/goal`, this desktop host's optional Goal adapter, and Agent SDK progress tools. A Goal does not prove compaction or replace context diagnostics.
 
-The example is deliberately opt-in. Copy the script and add an appropriate `UserPromptSubmit` entry to the Claude Code hook configuration for your installation. Start with `MODE=warn` behavior; use blocking only after testing it with your provider and workflow. See [hooks/README.md](hooks/README.md).
+## MCP and Agent SDK
 
-The Hook reads JSON from stdin and writes a supported `hookSpecificOutput` response. It does not print transcript contents, credentials, or request payloads.
+This project does not ship an MCP server. A desktop host may expose non-standard Goal ledger tools; use them only after capability detection and keep their IDs/evidence private. The Agent SDK does not provide a universal Goal CRUD API. If an SDK session exposes `/goal`, check the initialization capabilities first; otherwise use its documented hooks, session events, and an explicit external persistence layer when durable state is required.
 
-## MCP and Goal integration
+## Available Skills
 
-This project does not ship a new MCP server. Claude Code already exposes session-level tools in some environments for reading usage and persisting a Goal. When available, use them as follows:
+Each directory under `skills/` is a downloadable Skill package:
 
-- read the current usage/status before changing a threshold;
-- use a Goal for durable completion criteria and verification evidence;
-- use transcript evidence such as a compact boundary rather than trusting a UI ring alone.
+- [claude-context-guard](skills/claude-context-guard/SKILL.md) — diagnose context-window mismatches, compaction, and 413 request-size failures.
+- [review-bugbot](skills/review-bugbot/SKILL.md) — run one bounded Bugbot subagent review; requires a host that provides `bugbot`.
+- [diagnosing-bugs](skills/diagnosing-bugs/SKILL.md) — debug hard bugs with a red-capable loop, hypotheses, probes, regression tests, and cleanup.
 
-The exact tool names and availability are host/version dependent. See [docs/claude-code-integration.md](docs/claude-code-integration.md) for a supported-boundary matrix and a fallback path when those tools are absent.
+The formal file list and host dependencies are in [skills/manifest.json](skills/manifest.json). The skills are community packages, not official Claude Code or Bugbot components.
+
+### Install a Skill
+
+From a checkout of this repository, install one package into the current project:
+
+```powershell
+Copy-Item -Recurse skills/review-bugbot .claude/skills/review-bugbot
+Copy-Item -Recurse skills/diagnosing-bugs .claude/skills/diagnosing-bugs
+```
+
+Or install for the current user:
+
+```powershell
+Copy-Item -Recurse skills/review-bugbot "$HOME/.claude/skills/review-bugbot"
+Copy-Item -Recurse skills/diagnosing-bugs "$HOME/.claude/skills/diagnosing-bugs"
+```
+
+Keep the `scripts` subdirectory when installing `diagnosing-bugs`. Existing target directories may contain local edits; back them up before replacement. A Skill install does not register the PowerShell Hook automatically. Hook installation remains opt-in; see [hooks/README.md](hooks/README.md).
+
+You can also download the repository ZIP from GitHub and copy only the desired `skills/<name>` directory. For reproducible setups, pin a reviewed commit or release tag rather than tracking `main`.
+
+## Diagnose and verify
+
+- [Diagnosis decision tree](docs/diagnosis.md)
+- [Verification checklist](docs/verification.md)
+- [Claude Code integration boundaries](docs/claude-code-integration.md)
+- [Hook guide and limitations](hooks/README.md)
+
+Run repository checks from its root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File hooks/powershell/context-guard.tests.ps1
+```
+
+On a shell-capable environment, also run:
+
+```bash
+bash -n skills/diagnosing-bugs/scripts/hitl-loop.template.sh
+git diff --check
+```
 
 ## Safety and privacy
 
-Do not commit:
+Do not publish authentication tokens, proxy URLs, cookies, personal settings, complete transcripts, images, PDFs, private prompts, real session IDs, or private MCP/workbench documents. Redact captured diagnostics before sharing them.
 
-- authentication tokens, proxy URLs, cookies, or personal settings;
-- full JSONL transcripts, images, PDFs, or attachments;
-- real session IDs when they are not needed for a reproducible example;
-- copied system prompts or private MCP/workbench documents.
-
-Before publishing, run the repository validation script and inspect `git diff --cached`.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+This is a community reference implementation, not an official Claude Code component. See [NOTICE.md](NOTICE.md), [skills/NOTICE.md](skills/NOTICE.md), and [LICENSE](LICENSE).
