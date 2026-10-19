@@ -183,3 +183,14 @@ test('reload invalidates an old receipt when a completed identity is now live ag
   assert.equal(g.agents.a.delivered_generation, undefined)
   assert.equal(g.status, 'waiting_agents')
 })
+test('error/refusal/cancellation cannot be erased by a lagging running roster', () => {
+  for (const [reason, state] of [['error', 'failed'], ['refusal', 'failed'], ['aborted', 'killed']]) {
+    const g = goal(); launch(g); enterWait(g, ['a'], 3)
+    turnEnded(g, 'a', 'turn-a', reason, 4)
+    snapshot(g, [info('a', 'running')], 5)
+    assert.equal(g.agents.a.generation, 1)
+    assert.equal(g.agents.a.status, state)
+    assert.equal(notified(g, { id: 'a', status: state, toolUseId: 'spawn-a' }, 6), 'accepted')
+    assert.equal(g.status, 'active')
+  }
+})

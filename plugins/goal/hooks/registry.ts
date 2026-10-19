@@ -80,14 +80,14 @@ export function snapshot(goal: Goal, agents: AgentInfo[] | undefined, now: numbe
     const status: AgentStatus = known.has(info.status) ? info.status as AgentStatus : 'unknown'
     const teammate = !!info.teammateId || info.type === 'teammate'
     // A trusted terminal report outranks a stale roster; new turn/spawn events advance the run.
-    const reported = terminal(r.status) && r.delivered_generation === r.generation && !r.restored
-    if (terminal(r.status) && !terminal(status) && status !== 'unknown' && !reported && !(teammate && status === 'idle')) nextRun(r, now)
+    const confirmed = terminal(r.status) && !r.restored
+    if (terminal(r.status) && !terminal(status) && status !== 'unknown' && r.restored && !(teammate && status === 'idle')) nextRun(r, now)
     r.parent_id = info.parentId ?? r.parent_id
     r.description = info.description.slice(0, 1000)
     r.name = info.name ?? r.name
     r.teammate = teammate
     // A snapshot after a reload cannot identify a run missed while the plugin was absent.
-    r.status = reported && !terminal(status) && !(teammate && status === 'idle') ? r.status :
+    r.status = confirmed && !terminal(status) && !(teammate && status === 'idle') ? r.status :
       r.restored && !terminal(r.status) && terminal(status) ? 'unknown' : status
     if (!terminal(status)) delete r.restored
     if (terminal(r.status) && !r.background && r.terminal_turn_id) r.delivered_generation = r.generation
@@ -167,6 +167,7 @@ export function notified(goal: Goal, n: Notification, now: number): 'accepted' |
   if (r.delivered_generation === r.generation && terminal(r.status)) return 'duplicate'
   if (r.restored) return 'ambiguous'
   r.status = n.status
+  if (n.status !== 'completed') r.last_reason = n.status === 'killed' ? 'aborted' : 'error'
   r.delivered_generation = r.generation
   r.last_activity_at = now
   settleWait(goal)

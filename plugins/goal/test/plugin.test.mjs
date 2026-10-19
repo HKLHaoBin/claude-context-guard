@@ -216,3 +216,17 @@ test('corrupt persisted registries fail closed without overwriting saved state',
   await assert.rejects(resumed.start(), /Invalid persisted Goal registry/)
   assert.deepEqual(h.store.get('goal-session-v2/test-session'), saved)
 })
+test('dropped duplicate reports do not invalidate an already-queued active continuation', async () => {
+  const h = harness(); await h.create(); await h.spawn('a'); await h.end('a'); await h.notify('a')
+  await h.turn(); assert.ok((await h.notify('a')).drop); await h.advance()
+  assert.equal(h.accepted.filter(p => p.origin.kind === 'plugin').length, 1)
+})
+test('partial receipts and active progress preserve the unresolved all-required join', async () => {
+  const h = harness(); await h.create(); await h.spawn('a'); await h.spawn('b'); await wait(h, ['a', 'b'])
+  await h.end('a'); await h.notify('a')
+  const result = await h.call('UpdateGoal', { status: 'active', summary: 'Processed the first report',
+    received_results: [{ agent_id: 'a', generation: 1, evidence: 'Read first report' }] })
+  assert.equal(result.goal.status, 'waiting_agents')
+  await h.turn(); await h.advance()
+  assert.equal(h.accepted.filter(p => p.origin.kind === 'plugin').length, 0)
+})

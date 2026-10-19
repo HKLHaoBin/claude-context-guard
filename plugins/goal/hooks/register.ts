@@ -2,7 +2,7 @@ import type { Register } from 'claude-code'
 import type { Host } from './host.ts'
 import { createGoal, normalize, object, safeId, statuses, terminal, type Database, type Goal, type GoalStatus } from './model.ts'
 import { acknowledge, activity, blockers, enterWait, failed, notified, parseNotification, required, restore, settleWait,
-  snapshot, spawned, turnEnded, turnStarted } from './registry.ts'
+  snapshot, spawned, settled, turnEnded, turnStarted } from './registry.ts'
 import { tools } from './schemas.ts'
 
 const PREFIX = 'mcp__goal__'
@@ -22,7 +22,7 @@ function visible(goal: Goal | undefined) {
 function status(host: Host, goal: Goal | undefined): void {
   if (!goal || goal.status === 'complete') { host.ui.status(undefined); return }
   const agents = goal.agent_wait?.agent_ids ?? goal.dependencies
-  const count = agents.filter(id => terminal(goal.agents[id]?.status ?? '') &&
+  const count = agents.filter(id => Object.hasOwn(goal.agents, id) && settled(goal.agents[id]) &&
     goal.agents[id]?.delivered_generation === goal.agents[id]?.generation).length
   const suffix = agents.length ? ` · results ${count}/${agents.length}` : ''
   host.ui.status(`Goal ${goal.status}${suffix} · ${goal.objective.replace(/\s+/g, ' ').slice(0, 64)}`)
@@ -194,7 +194,7 @@ export const register: Register = on => {
               delete goal.waiting_on
               goal.status = 'active'
             } else goal.status = 'waiting_external'
-          } else if (goal.status === 'paused' && goal.agent_wait) {
+          } else if (goal.agent_wait && (goal.status === 'paused' || goal.status === 'waiting_agents')) {
             goal.status = 'waiting_agents'
             settleWait(goal)
           } else { goal.status = 'active'; delete goal.agent_wait }
@@ -291,7 +291,7 @@ export const register: Register = on => {
         if (!match || match[1] !== goal.id || Number(match[2]) !== goal.control_generation || goal.status !== 'active') return { drop: 'Stale or suspended Goal continuation' }
         goal.control_generation++
         goal.usage.continuations++
-      } else goal.control_generation++
+      }
       let notice = ''
       if (notification) {
         await sync(host, goal, now)
@@ -305,6 +305,7 @@ export const register: Register = on => {
           delete goal.waiting_on
         } else if (goal.last_wake?.watcher_id === notification.id && outcome === 'unrelated' && !wait) return { drop: 'Duplicate watcher completion' }
       }
+      if (!own) goal.control_generation++
       return { context: [`Persistent Goal ${goal.id} is ${goal.status}. Objective: ${goal.objective}`,
         `Required dependencies still unresolved: ${blockers(goal).join(', ') || 'none'}. Execution ending never proves objective completion.`,
         goal.status === 'paused' ? 'Preserve this explicit pause until the user resumes it.' :

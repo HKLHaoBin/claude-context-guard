@@ -37,7 +37,7 @@ export const safeId = (id: unknown): id is string => typeof id === 'string' &&
   /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/.test(id) && !['constructor', 'prototype'].includes(id)
 export const object = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x)
 export const statuses: GoalStatus[] = ['active', 'waiting_agents', 'waiting_external', 'paused', 'complete']
-const count = (value: unknown): boolean => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 const ids = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 256 && value.every(safeId)
 function validateRegistry(raw: Record<string, unknown>): void {
   if ((raw.agents !== undefined && !object(raw.agents)) ||
