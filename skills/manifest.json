@@ -23,7 +23,7 @@
       "name": "diagnosing-bugs",
       "path": "skills/diagnosing-bugs",
       "entry": "skills/diagnosing-bugs/SKILL.md",
-      "files": ["SKILL.md", "scripts/hitl-loop.template.sh"],
+      "files": ["SKILL.md", "scripts/hitl-loop.template.sh", "references/semantic-analysis.md", "references/semantic-cases.json", "references/semantic-evaluation.md"],
       "invocation": "model-discoverable",
       "hostDependencies": ["shell, debugger, test, or equivalent feedback loop"],
       "notice": "skills/NOTICE.md"

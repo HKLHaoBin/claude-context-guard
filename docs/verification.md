@@ -61,7 +61,7 @@ The fixtures are not the standard live `UserPromptSubmit` contract; test a sanit
 In a clean temporary project, install each `skills/<name>` directory and confirm:
 
 - the host discovers the expected `SKILL.md` name;
-- `diagnosing-bugs` retains its `scripts/hitl-loop.template.sh` reference;
+- `diagnosing-bugs` retains its `scripts/hitl-loop.template.sh` helper and all three `references/semantic-*` files;
 - `review-bugbot` reports an unavailable `bugbot` subagent instead of claiming a review ran;
 - relative links stay inside the installed Skill package;
 - the install does not register or alter the optional Hook automatically.
@@ -88,3 +88,11 @@ A useful report includes:
 - operating system and PowerShell version for Hook tests;
 - Goal condition, visible checks, and evidence status when a Goal was used;
 - the exact files and commands that were verified.
+
+## 8. Verify semantic diagnosis on GitHub Actions
+
+The Validate workflow runs the semantic package and reproduction-helper checks on the exact pushed commit, alongside the existing repository and Hook checks. Record the branch, commit SHA, run URL, and actual result; use GitHub Actions rather than local test/build execution when the workspace policy requires remote verification.
+
+The added checks validate contract/reference packaging, the thirteen synthetic cases and their counterexample relationships, and outcome/error-independent shell captures (including late overwrites, unknown input, rejected free text, and EOF). They do not call a model or measure agent diagnostic accuracy.
+
+For a separately authorized behavioral comparison, follow [the packaged evaluation protocol](../skills/diagnosing-bugs/references/semantic-evaluation.md). Withhold answer keys and case labels from the diagnosing agent, compare old/new Skills under equivalent conditions, and report misses, false positives, unsupported causal claims, and coverage errors separately. Keep real product-fix reproduction and user-confirmed cleanup gates intact.

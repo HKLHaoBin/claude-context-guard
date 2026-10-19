@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "purpose": "Synthetic evidence-analysis cases, not a general-purpose log detector or measured agent results.",
+  "cases": [
+    {
+      "id": "stale-result",
+      "dimension": "state-version",
+      "symptom": "The screen briefly shows the latest result, then reverts to an older result without an error.",
+      "contract": {"id": "N1", "rule": "Only the latest requested generation may update the current screen.", "source": "Explicit scenario requirement: latest-request-wins.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Run-local operations A/B; generation is sampled at the application boundary."},
+      "logs": [
+        "INFO operation=A generation=41 event=request_started",
+        "INFO operation=B generation=42 event=request_started",
+        "INFO operation=B generation=42 current_generation=42 event=result_applied",
+        "INFO operation=A generation=41 current_generation=42 event=result_applied",
+        "INFO event=screen_observed displayed_generation=41 current_generation=42"
+      ],
+      "expected": {"status": "VIOLATION", "evidence_lines": [2, 4, 5], "deviation": "Generation 41 updates the screen while generation 42 is current.", "benign_alternative": "Out-of-order arrival is legal; applying an obsolete result under this contract is not.", "next_action": "Inspect or probe the validity-check and commit boundary to distinguish a missing check from a non-atomic check or alternate writer.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "incomplete-export",
+      "dimension": "counts-outcome",
+      "symptom": "Export reports success, but the exported record count is wrong.",
+      "contract": {"id": "N1", "rule": "Export all 100 accepted records exactly once; no filtering or cancellation is enabled.", "source": "Explicit scenario requirement and verified export options.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "One operation A; output count is measured from the completed artifact."},
+      "logs": [
+        "INFO operation=A event=export_started accepted=100 filtering=false",
+        "INFO operation=A event=export_complete outcome=success written=98",
+        "INFO operation=A event=artifact_observed records=98"
+      ],
+      "expected": {"status": "VIOLATION", "evidence_lines": [1, 2, 3], "deviation": "The actual artifact contains 98 of the required 100 records despite a success label.", "benign_alternative": "Filtering and cancellation have been excluded by the scenario contract and observed options.", "next_action": "Locate the earliest observed count divergence at transform/write boundaries; do not infer which stage lost records yet.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "heartbeat-without-progress",
+      "dimension": "progress",
+      "symptom": "The task keeps logging healthy heartbeats but does not process any work.",
+      "contract": {"id": "N1", "rule": "For this fixed ten-record workload, process all ten records within the documented 5000 ms budget.", "source": "Scenario-specific documented processing budget; all work is already available.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Operation A; elapsed_ms uses one monotonic clock; final progress is observed at the contractual deadline."},
+      "logs": [
+        "INFO operation=A event=started total=10 elapsed_ms=0",
+        "INFO operation=A event=heartbeat healthy=true processed=0 elapsed_ms=1000",
+        "INFO operation=A event=heartbeat healthy=true processed=0 elapsed_ms=3000",
+        "INFO operation=A event=deadline_observed processed=0 total=10 elapsed_ms=5000"
+      ],
+      "expected": {"status": "VIOLATION", "evidence_lines": [1, 2, 3, 4], "deviation": "Activity continues, but the contractual progress budget is exceeded with zero records processed.", "benign_alternative": "Idle polling is not applicable because the ten records were available at the start.", "next_action": "Inspect the work-eligibility and dequeue/advance boundaries without adding artificial waits.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "legal-cancellation",
+      "dimension": "cancellation",
+      "symptom": "A cancelled export produces no output and no completion event.",
+      "contract": {"id": "N1", "rule": "Explicit cancellation is a valid terminal state and must prevent output commitment.", "source": "Verified cancellation contract for this operation.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Operation A; asynchronous work is drained at observation end."},
+      "logs": [
+        "INFO operation=A event=export_started",
+        "INFO operation=A event=cancel_requested",
+        "INFO operation=A event=terminal state=cancelled output_committed=false",
+        "INFO operation=A event=observation_end async_drained=true output_committed=false"
+      ],
+      "expected": {"status": "NO_VIOLATION_OBSERVED", "evidence_lines": [2, 3, 4], "deviation": "None for the cancellation contract; absence of successful output is expected here.", "benign_alternative": "Cancellation is explicitly observed, not merely assumed.", "next_action": "If the user intended an uncancelled export, obtain that trigger separately rather than changing cancellation behavior.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "filtered-empty-output",
+      "dimension": "counts-outcome",
+      "symptom": "An export succeeds with zero records.",
+      "contract": {"id": "N1", "rule": "Output count equals input count minus filtered records; an empty filtered result is valid.", "source": "Verified filter/export accounting contract.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "One operation A with complete count accounting and artifact observation."},
+      "logs": [
+        "INFO operation=A event=accepted input=8",
+        "INFO operation=A event=filter_complete filtered=8 retained=0",
+        "INFO operation=A event=export_complete outcome=success output=0",
+        "INFO operation=A event=artifact_observed records=0 valid=true"
+      ],
+      "expected": {"status": "NO_VIOLATION_OBSERVED", "evidence_lines": [1, 2, 3, 4], "deviation": "None: 8 minus 8 equals the observed zero-record output.", "benign_alternative": "The verified filter accounts for every omitted record.", "next_action": "Clarify filter expectations only if the user disputes them; do not report data loss from zero alone.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "cache-hit-no-network",
+      "dimension": "outcome",
+      "symptom": "The page loads successfully without a network request event.",
+      "contract": {"id": "N1", "rule": "A valid cache hit may satisfy the request without network access; the expected current result must be displayed.", "source": "Verified cache-validity and page-outcome contract.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Operation A; cache validity and the visible result are both observed."},
+      "logs": [
+        "INFO operation=A event=cache_lookup hit=true valid=true generation=7",
+        "INFO operation=A event=result_applied generation=7 current_generation=7",
+        "INFO operation=A event=screen_observed expected_result=true",
+        "INFO operation=A event=terminal state=completed"
+      ],
+      "expected": {"status": "NO_VIOLATION_OBSERVED", "evidence_lines": [1, 2, 3, 4], "deviation": "None for the current-result contract; network access is not obligatory on a valid hit.", "benign_alternative": "A valid cache hit is explicitly observed and the result contract is met.", "next_action": "No extra network probe is needed for this observed contract.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "idempotent-redelivery",
+      "dimension": "multiplicity",
+      "symptom": "The same work is delivered twice, but only one effect is visible.",
+      "contract": {"id": "N1", "rule": "Delivery is at least once; committing the effect must be idempotent and occur once for this work item.", "source": "Verified delivery and idempotency contract.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Operation A is a generated label for the same synthetic work; commitment count is observed after drain."},
+      "logs": [
+        "INFO operation=A event=delivery attempt=1",
+        "INFO operation=A event=effect_committed effect_count=1",
+        "INFO operation=A event=delivery attempt=2",
+        "INFO operation=A event=duplicate_suppressed effect_count=1",
+        "INFO operation=A event=observation_end async_drained=true effect_count=1"
+      ],
+      "expected": {"status": "NO_VIOLATION_OBSERVED", "evidence_lines": [1, 2, 3, 4, 5], "deviation": "None: delivery repeated, but the side effect was committed only once.", "benign_alternative": "Redelivery is permitted and deduplication is proven at the effect boundary.", "next_action": "Do not add a one-delivery-only constraint or remove the idempotency boundary.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "buffered-line-reordering",
+      "dimension": "ordering",
+      "symptom": "A commit line appears before its start line in the collected file.",
+      "contract": {"id": "N1", "rule": "An operation starts before it commits and then exposes its result.", "source": "Verified lifecycle contract; event_seq is assigned at the same producer's probe boundary before buffered emission.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "One operation A and one producer; file order may differ from producer-local event_seq."},
+      "logs": [
+        "INFO operation=A event_seq=2 event=committed",
+        "INFO operation=A event_seq=1 event=started",
+        "INFO operation=A event_seq=3 event=screen_observed expected_result=true"
+      ],
+      "expected": {"status": "NO_VIOLATION_OBSERVED", "evidence_lines": [1, 2, 3], "deviation": "None in the supported source-local sequence: start 1, commit 2, outcome 3.", "benign_alternative": "Buffered emission explains physical line order; it does not reverse the supported causal sequence.", "next_action": "Retain original line citations while reconstructing producer-local order.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "truncated-capture",
+      "dimension": "coverage",
+      "symptom": "Only the start and a heartbeat are available; the reported final result is missing.",
+      "contract": {"id": "N1", "rule": "The task must reach a valid terminal result within the documented 5000 ms budget.", "source": "Scenario-specific documented completion budget.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": false, "correlation": "Operation A; capture stops at 1000 ms, is truncated, and has no flush or asynchronous-drain evidence."},
+      "logs": [
+        "INFO operation=A event=started elapsed_ms=0",
+        "INFO operation=A event=heartbeat elapsed_ms=1000"
+      ],
+      "expected": {"status": "INSUFFICIENT_EVIDENCE", "evidence_lines": [1, 2], "deviation": "The available capture does not cover the completion boundary; no failure or success is proven.", "benign_alternative": "The operation may complete after the truncated capture ends.", "next_action": "Obtain complete coverage through the contractual boundary and verify probe emission and flush/drain behavior.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "unrelated-error",
+      "dimension": "symptom-link",
+      "symptom": "The screen reverts to an old generation while an unrelated background task also logs an error.",
+      "contract": {"id": "N1", "rule": "Only current generation 12 may update this screen; operation C does not write screen state.", "source": "Explicit latest-request-wins requirement and verified background-task boundary.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Screen operations A/B and background operation C have distinct run-local labels."},
+      "logs": [
+        "ERROR operation=C event=background_refresh error_code=TEMP_UNAVAILABLE",
+        "INFO operation=B event=result_applied generation=12 current_generation=12",
+        "INFO operation=A event=result_applied generation=11 current_generation=12",
+        "INFO event=screen_observed displayed_generation=11 current_generation=12"
+      ],
+      "expected": {"status": "VIOLATION", "evidence_lines": [2, 3, 4], "deviation": "An obsolete generation updates the screen; the independent error does not explain that observation.", "benign_alternative": "The error is on a verified unrelated operation; removing it leaves the same semantic violation.", "next_action": "Investigate the screen-state application boundary; keep the background error separate from the reported bug.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "duration-without-baseline",
+      "dimension": "performance",
+      "symptom": "A successful operation takes 12000 ms and feels slow.",
+      "contract": {"id": "N1", "rule": "The operation should finish fast enough for this workload; no budget or comparable baseline has been supplied.", "source": "Unverified expectation; workload and reference budget are unknown.", "verified": false},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Operation A; duration is measured with a monotonic clock, but workload comparability is unknown."},
+      "logs": [
+        "INFO operation=A event=completed outcome=success duration_ms=12000",
+        "INFO operation=A event=screen_observed expected_result=true"
+      ],
+      "expected": {"status": "SUSPICIOUS", "evidence_lines": [1, 2], "deviation": "A duration is observed, but no sourced performance threshold establishes a regression.", "benign_alternative": "The workload may legitimately require this duration.", "next_action": "Establish a documented budget or comparable known-good workload before diagnosing a performance violation.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "uncorrelated-concurrency",
+      "dimension": "correlation",
+      "symptom": "Two requests overlap; the user reports a wrong screen result, but the log omits operation and generation labels.",
+      "contract": {"id": "N1", "rule": "Only the latest requested generation may update the screen.", "source": "Explicit scenario requirement: latest-request-wins.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Unknown: no operation, generation, or supported cross-source ordering is recorded."},
+      "logs": [
+        "INFO event=request_started",
+        "INFO event=request_started",
+        "INFO event=result_applied outcome=success",
+        "INFO event=result_applied outcome=success"
+      ],
+      "expected": {"status": "INSUFFICIENT_EVIDENCE", "evidence_lines": [1, 2, 3, 4], "deviation": "These records cannot connect either applied result to the current request or verify the visible outcome.", "benign_alternative": "Both legal arrival/application and stale application fit the uncorrelated records.", "next_action": "Add run-local operation labels and generation/current-generation observations at the application boundary within the 2–6-probe budget.", "root_cause_confirmed": false}
+    },
+    {
+      "id": "missing-terminal-complete-capture",
+      "dimension": "coverage",
+      "symptom": "The task never reaches its required terminal result, despite normal-looking activity logs.",
+      "contract": {"id": "N1", "rule": "The task must emit its terminal result and expose completion within 5000 ms; cancellation and alternate terminal paths are disabled.", "source": "Verified task contract and a terminal probe that necessarily emits on every valid terminal path.", "verified": true},
+      "coverage": {"path_exercised": true, "capture_complete": true, "correlation": "Operation A; unsampled terminal probe enabled; zero dropped records; async drained and buffers flushed through the monotonic contractual deadline."},
+      "logs": [
+        "INFO operation=A event=started elapsed_ms=0 terminal_probe_enabled=true",
+        "INFO operation=A event=heartbeat elapsed_ms=3000",
+        "INFO operation=A event=observation_end elapsed_ms=5000 async_drained=true buffers_flushed=true dropped_records=0 terminal_observed=false screen_completed=false"
+      ],
+      "expected": {"status": "VIOLATION", "evidence_lines": [1, 2, 3], "deviation": "The mandatory terminal result is absent under verified full coverage, and completion is not visible at the required deadline.", "benign_alternative": "Truncation, sampling, pending asynchronous work, cancellation, and alternate terminal paths are excluded by the supplied coverage facts.", "next_action": "Inspect or probe the last observed progress-to-terminal boundary without masking the missing transition with retries or sleeps.", "root_cause_confirmed": false}
+    }
+  ]
+}

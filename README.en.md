@@ -24,7 +24,7 @@ The evaluator can only judge evidence Claude has surfaced in the conversation. `
 
 - [claude-context-guard](skills/claude-context-guard/SKILL.md) — context, compaction, and 413 diagnosis.
 - [review-bugbot](skills/review-bugbot/SKILL.md) — bounded Bugbot review when the host provides a `bugbot` subagent.
-- [diagnosing-bugs](skills/diagnosing-bugs/SKILL.md) — debug workflow with reproduction, hypotheses, probes, regression tests, and cleanup.
+- [diagnosing-bugs](skills/diagnosing-bugs/SKILL.md) — diagnose explicit errors and silent failures with behavior contracts, event correlation, semantic anomaly checks, and a verified fix loop; see [the diagnosis guide](docs/diagnosing-bugs.md).
 
 See [skills/manifest.json](skills/manifest.json) for package files and dependencies. These are community Skills, not official Claude Code or Bugbot components.
 
@@ -46,7 +46,7 @@ Copy-Item -Recurse skills/review-bugbot "$HOME/.claude/skills/review-bugbot"
 Copy-Item -Recurse skills/diagnosing-bugs "$HOME/.claude/skills/diagnosing-bugs"
 ```
 
-The diagnosis Skill must keep its `scripts` directory. A Skill install does not register the optional PowerShell Hook. Downloading the GitHub ZIP and copying only the required `skills/<name>` directory is also supported; pin a reviewed commit or tag for reproducible installations.
+The diagnosis Skill must keep both its `scripts` and `references` directories. A Skill install does not register the optional PowerShell Hook. Downloading the GitHub ZIP and copying only the required `skills/<name>` directory is also supported; pin a reviewed commit or tag for reproducible installations.
 
 ## Context and Hook integration
 

@@ -87,7 +87,7 @@ Each directory under `skills/` is a downloadable Skill package:
 
 - [claude-context-guard](skills/claude-context-guard/SKILL.md) — diagnose context-window mismatches, compaction, and 413 request-size failures.
 - [review-bugbot](skills/review-bugbot/SKILL.md) — run one bounded Bugbot subagent review; requires a host that provides `bugbot`.
-- [diagnosing-bugs](skills/diagnosing-bugs/SKILL.md) — debug hard bugs with a red-capable loop, hypotheses, probes, regression tests, and cleanup.
+- [diagnosing-bugs](skills/diagnosing-bugs/SKILL.md) — diagnose explicit errors and silent failures using sourced behavior contracts, correlated events, semantic anomaly checks, and a verified fix loop; see [the diagnosis guide](docs/diagnosing-bugs.md).
 
 The formal file list and host dependencies are in [skills/manifest.json](skills/manifest.json). The skills are community packages, not official Claude Code or Bugbot components.
 
@@ -107,7 +107,7 @@ Copy-Item -Recurse skills/review-bugbot "$HOME/.claude/skills/review-bugbot"
 Copy-Item -Recurse skills/diagnosing-bugs "$HOME/.claude/skills/diagnosing-bugs"
 ```
 
-Keep the `scripts` subdirectory when installing `diagnosing-bugs`. Existing target directories may contain local edits; back them up before replacement. A Skill install does not register the PowerShell Hook automatically. Hook installation remains opt-in; see [hooks/README.md](hooks/README.md).
+Keep both the `scripts` and `references` subdirectories when installing `diagnosing-bugs`. Existing target directories may contain local edits; back them up before replacement. A Skill install does not register the PowerShell Hook automatically. Hook installation remains opt-in; see [hooks/README.md](hooks/README.md).
 
 You can also download the repository ZIP from GitHub and copy only the desired `skills/<name>` directory. For reproducible setups, pin a reviewed commit or release tag rather than tracking `main`.
 
