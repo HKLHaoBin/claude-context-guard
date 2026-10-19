@@ -3,6 +3,7 @@ name: Validate
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   powershell:
@@ -29,3 +30,27 @@ jobs:
         run: python scripts/test-diagnosing-bugs.py
       - name: Check Git whitespace
         run: git show --format= --check HEAD
+
+  goal:
+    name: Goal state machine (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Type-check Goal hooks against the documented host boundary
+        run: npx --yes --package typescript@5.9.3 tsc --project plugins/goal/tsconfig.json
+      - name: Run Goal registry and hook integration tests
+        run: node --test plugins/goal/test/registry.test.mjs plugins/goal/test/plugin.test.mjs
+      - name: Upload Goal plugin source bundle
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: goal-plugin-source
+          path: plugins/goal/
+          include-hidden-files: true

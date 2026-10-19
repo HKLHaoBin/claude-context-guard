@@ -20,6 +20,14 @@ Use the official session-scoped `/goal <condition>` when a substantial task has 
 
 The evaluator can only judge evidence Claude has surfaced in the conversation. `/goal` shows the condition, `/goal clear` removes it, and resume restores an active condition with fresh timing and counters. See [Goal methodology](docs/goal-methodology.md) for condition design, evidence, check-ins, and the distinction between official `/goal` and non-standard host Goal adapters.
 
+## Goal-driven execution
+
+For normal implementation requests, use the instruction as an active goal rather than entering plan mode. Extract the completion contract, expand only along the goal's dependency frontier, iterate through implementation and verification, and keep evidence visible until the acceptance checks pass. The full reusable prompt and boundaries are in [Goal-driven execution](docs/goal-driven-execution.md); copy its prompt block into the user's global `CLAUDE.md` when this behavior should apply across projects.
+
+## Subagent-aware Goal plugin
+
+The optional [Goal plugin](plugins/goal/README.md) adds a durable agent registry, explicit `waiting_agents` joins, run-generation fencing, result receipts and evidence-gated completion. Workers do not pause independent parent work. Native completion notifications wake the parent without a fallback polling loop. It requires a hooks-module-compatible host and is separate from the built-in `/goal` evaluator and standalone Skills. The repository marketplace exposes `goal@claude-context-guard`; see its host requirements before installing.
+
 ## Available Skills
 
 - [claude-context-guard](skills/claude-context-guard/SKILL.md) — context, compaction, and 413 diagnosis.

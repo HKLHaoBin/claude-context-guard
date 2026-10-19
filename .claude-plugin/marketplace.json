@@ -1,0 +1,12 @@
+{
+  "name": "claude-context-guard",
+  "owner": { "name": "HKLHaoBin" },
+  "plugins": [
+    {
+      "name": "goal",
+      "source": "./plugins/goal",
+      "description": "Host-specific durable Goal plugin with subagent-aware waits",
+      "version": "0.3.0"
+    }
+  ]
+}

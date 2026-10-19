@@ -48,6 +48,24 @@ $actualSkillDirs = @(Get-ChildItem -LiteralPath $skillRoot -Directory | Select-O
 $manifestSkillDirs = @($manifest.skills | ForEach-Object { Split-Path -Leaf $_.path })
 if (@(Compare-Object $actualSkillDirs $manifestSkillDirs).Count -gt 0) { throw 'Skill directories and manifest entries differ' }
 
+$goalRoot = Join-Path $root 'plugins/goal'
+$goalPlugin = Join-Path $goalRoot '.claude-plugin/plugin.json'
+$goalPackage = Join-Path $goalRoot 'package.json'
+$goalHooks = Join-Path $goalRoot 'hooks/hooks.json'
+$marketplacePath = Join-Path $root '.claude-plugin/marketplace.json'
+foreach ($relative in @('.claude-plugin/plugin.json', 'package.json', 'hooks/hooks.json', 'hooks/register.ts', 'skills/goal/SKILL.md')) {
+  if (-not (Test-Path -LiteralPath (Join-Path $goalRoot $relative) -PathType Leaf)) { throw "Missing Goal plugin file: $relative" }
+}
+$plugin = Get-Content -LiteralPath $goalPlugin -Raw | ConvertFrom-Json
+$package = Get-Content -LiteralPath $goalPackage -Raw | ConvertFrom-Json
+$moduleHooks = Get-Content -LiteralPath $goalHooks -Raw | ConvertFrom-Json
+$marketplace = Get-Content -LiteralPath $marketplacePath -Raw | ConvertFrom-Json
+$listing = @($marketplace.plugins | Where-Object { $_.name -eq 'goal' })
+if ($plugin.name -ne 'goal' -or $plugin.version -ne $package.version -or $listing.Count -ne 1 -or $listing[0].version -ne $plugin.version) { throw 'Goal plugin versions/listing disagree' }
+if ($listing[0].source -ne './plugins/goal' -or $moduleHooks.modules.Count -ne 1 -or $moduleHooks.modules[0] -ne './register.ts') { throw 'Goal plugin entry points disagree' }
+$goalSkills = @(Get-ChildItem -LiteralPath $goalRoot -Filter SKILL.md -Recurse -File)
+if ($goalSkills.Count -ne 1) { throw 'Goal must have exactly one canonical skill entry' }
+
 foreach ($jsonPath in @($settings, $hooks)) {
   Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json | Out-Null
 }

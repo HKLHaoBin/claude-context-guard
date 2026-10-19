@@ -5,7 +5,7 @@ This repository documents two different mechanisms that are easy to confuse:
 1. **Official `/goal`**: a session-scoped Claude Code command that keeps the session working toward a completion condition.
 2. **Host Goal adapters**: optional application or plugin tools such as `CreateGoal`/`UpdateGoal`. These are not a general Claude Code or Agent SDK contract.
 
-Goal records progress toward a verifiable end state. It does not change the provider context limit, trigger compaction, or prove that a request stayed below a gateway's byte limit.
+Goal records progress toward a verifiable end state. It does not change the provider context limit, trigger compaction, or prove that a request stayed below a gateway's byte limit. For the execution behavior that pursues a user's implementation goal, see [Goal-driven execution](goal-driven-execution.md).
 
 ## When to use a Goal
 
@@ -70,6 +70,7 @@ Some desktop workbenches expose non-standard Goal tools with a ledger-like lifec
 
 - Create exactly one Goal for one continuous deliverable, then reuse its returned identifier.
 - `active` means work is in progress.
+- `waiting_agents` in this repository's [optional Goal plugin](../plugins/goal/README.md) joins exact required worker IDs while suppressing fallback continuations. Agent execution ending resumes reconciliation, never automatic Goal completion.
 - `waiting_external` means a real background watcher is running; provide its actual watcher/task identifier.
 - `paused` means progress requires user input, access, authorization, credentials, or a reproduction environment; do not disguise this as an external wait.
 - `complete` requires non-empty, verified evidence covering the acceptance criteria.

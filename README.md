@@ -77,6 +77,14 @@ The condition should have one measurable end state, a check that Claude runs and
 
 See [Goal methodology](docs/goal-methodology.md) for evidence rules and the distinction between official `/goal`, this desktop host's optional Goal adapter, and Agent SDK progress tools. A Goal does not prove compaction or replace context diagnostics.
 
+## Goal-driven execution
+
+For normal implementation requests, use the instruction as an active goal rather than entering plan mode. Extract the completion contract, expand only along the goal's dependency frontier, iterate through implementation and verification, and keep evidence visible until the acceptance checks pass. The full reusable prompt and boundaries are in [Goal-driven execution](docs/goal-driven-execution.md); copy its prompt block into the user's global `CLAUDE.md` when this behavior should apply across projects.
+
+## Subagent-aware Goal plugin
+
+The optional [Goal plugin](plugins/goal/README.md) adds a durable agent registry, explicit `waiting_agents` joins, run-generation fencing, result receipts and evidence-gated completion. Workers do not pause independent parent work. Native completion notifications wake the parent without a fallback polling loop. It requires a hooks-module-compatible host and is separate from the built-in `/goal` evaluator and standalone Skills. The repository marketplace exposes `goal@claude-context-guard`; see its host requirements before installing.
+
 ## MCP and Agent SDK
 
 This project does not ship an MCP server. A desktop host may expose non-standard Goal ledger tools; use them only after capability detection and keep their IDs/evidence private. The Agent SDK does not provide a universal Goal CRUD API. If an SDK session exposes `/goal`, check the initialization capabilities first; otherwise use its documented hooks, session events, and an explicit external persistence layer when durable state is required.

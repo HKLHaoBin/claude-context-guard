@@ -38,7 +38,19 @@ In a disposable or low-risk session:
 
 Do not use a Goal status as evidence that compaction or a provider request succeeded. If `/goal` is unavailable because of trust or hook policy, record that and use the manual checklist.
 
-## 4. Verify the Hook offline
+## 4. Verify the goal-driven execution method
+
+For an implementation task in a disposable branch or project, confirm that the agent:
+
+1. starts from the user's instruction instead of entering plan mode;
+2. states a completion contract with constraints and observable acceptance checks;
+3. inspects goal-relevant dependencies and expands scope only when correctness, operability, verification, or an explicit constraint requires it;
+4. iterates through implementation, checks, diff/runtime inspection, fixes, and reruns;
+5. reports evidence and blockers truthfully without claiming completion from an intention or unrun command.
+
+The method must not bypass permission, trust, security, privacy, or destructive-action boundaries. See [Goal-driven execution](goal-driven-execution.md).
+
+## 5. Verify the Hook offline
 
 The included test harness passes representative custom usage payloads to the script:
 
@@ -56,7 +68,7 @@ Cover these cases:
 
 The fixtures are not the standard live `UserPromptSubmit` contract; test a sanitized real event before relying on the guard.
 
-## 5. Verify the downloadable Skills
+## 6. Verify the downloadable Skills
 
 In a clean temporary project, install each `skills/<name>` directory and confirm:
 
@@ -72,11 +84,11 @@ For the shell template:
 bash -n skills/diagnosing-bugs/scripts/hitl-loop.template.sh
 ```
 
-## 6. Classify a 413
+## 7. Classify a 413
 
 Save the status and a sanitized response body. A provider token error should identify tokens/context; a gateway body error often identifies bytes, ingress, or request entity size. Test attachment handling with a disposable clean session, not the only copy of a valuable conversation.
 
-## 7. Reproducibility report
+## 8. Reproducibility report
 
 A useful report includes:
 
@@ -89,10 +101,14 @@ A useful report includes:
 - Goal condition, visible checks, and evidence status when a Goal was used;
 - the exact files and commands that were verified.
 
-## 8. Verify semantic diagnosis on GitHub Actions
+## 9. Verify semantic diagnosis on GitHub Actions
 
 The Validate workflow runs the semantic package and reproduction-helper checks on the exact pushed commit, alongside the existing repository and Hook checks. Record the branch, commit SHA, run URL, and actual result; use GitHub Actions rather than local test/build execution when the workspace policy requires remote verification.
 
 The added checks validate contract/reference packaging, the thirteen synthetic cases and their counterexample relationships, and outcome/error-independent shell captures (including late overwrites, unknown input, rejected free text, and EOF). They do not call a model or measure agent diagnostic accuracy.
 
 For a separately authorized behavioral comparison, follow [the packaged evaluation protocol](../skills/diagnosing-bugs/references/semantic-evaluation.md). Withhold answer keys and case labels from the diagnosing agent, compare old/new Skills under equivalent conditions, and report misses, false positives, unsupported causal claims, and coverage errors separately. Keep real product-fix reproduction and user-confirmed cleanup gates intact.
+
+## 10. Verify the optional subagent-aware Goal plugin
+
+GitHub Actions runs the registry and production-hook protocol suites on Windows/Linux with Node 24, and type-checks the explicit host boundary. Coverage includes joins, notification ordering, same-ID resume, stale/duplicate callbacks, concurrent siblings, unknown states, user pauses, nested work, watcher separation and legacy migration. These are structural host-harness checks, not vendor-host or model execution. See [Goal plugin](../plugins/goal/README.md) for host requirements, the source artifact and native integration checks. This source-only plugin has no desktop/mobile application build target.

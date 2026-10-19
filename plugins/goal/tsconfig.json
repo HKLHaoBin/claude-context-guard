@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023", "DOM"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": { "claude-code": ["./test/host-contract.d.ts"] }
+  },
+  "include": ["hooks/**/*.ts", "test/host-contract.d.ts"]
+}

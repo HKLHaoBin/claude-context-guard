@@ -1,0 +1,5 @@
+{
+  "name": "goal",
+  "version": "0.3.0",
+  "description": "Durable Goal execution with explicit subagent joins, run fencing and evidence gates"
+}
