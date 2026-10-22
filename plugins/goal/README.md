@@ -106,6 +106,15 @@ GitHub Actions runs production registry code and the actual `register` hooks aga
 
 The type-only `test/host-contract.d.ts` maps `claude-code` to the deliberately small structural boundary in `hooks/host.ts`. It is not a copy of generated vendor types. A compatible host's native `claude plugin validate` / plugin test suite remains an additional integration check when that host is available.
 
+Before installing changed hooks, run both native checks in a compatible host:
+
+```text
+claude plugin validate <plugin-directory>
+claude plugin test <plugin-directory>
+```
+
+The native tests in `test/native.test.ts` verify module admission, registration/callability of all three Goal tools, explicit waits, and continuation/pause behavior without model calls. Portable tests cannot substitute for these loading checks. The host requires host-aware helpers at module scope and direct `$.noun.method(...)` calls; optional chaining on a host noun can reject the entire module. A visible Skill without Goal tools is therefore not, by itself, proof that the host lacks Goal support: inspect native validation and loading errors before reinstalling or weakening the capability check.
+
 The `goal-plugin-source` Actions artifact contains the source distribution, not a desktop/mobile binary. This repository has no desktop or mobile application build target. No model credentials are required by the portable CI suite.
 
 Design references: [Orca child decoder](https://github.com/stablyai/orca/blob/5be871e537047fb0af50f3fb2d17aa02eef306e7/src/main/claude/claude-child-work-decoder.ts), [stable task IDs](https://github.com/stablyai/orca/blob/5be871e537047fb0af50f3fb2d17aa02eef306e7/src/main/claude/claude-subagent-id-aliases.ts), and [notification delivery tracking](https://github.com/stablyai/orca/blob/5be871e537047fb0af50f3fb2d17aa02eef306e7/src/shared/claude-owed-task-notifications.ts). The implementation here is independent and uses the host's native IDs/events rather than copying Orca's transport or UI code.

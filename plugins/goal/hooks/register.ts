@@ -29,7 +29,8 @@ function status(host: Host, goal: Goal | undefined): void {
 }
 async function sync(host: Host, goal: Goal, now: number): Promise<void> {
   try {
-    const list = await host.agent?.list()
+    // Host nouns must use direct calls; missing capabilities are caught below.
+    const list = await host.agent!.list()
     if (list && (!Array.isArray(list) || list.some(r => !r || !safeId(r.id) || typeof r.status !== 'string' || typeof r.description !== 'string'))) {
       goal.coverage = 'incomplete'; return
     }
@@ -43,55 +44,56 @@ function continuation(goal: Goal): string {
     'Read worker reports, reconcile failures and unknown states, and verify objective evidence before completing the Goal.'
 }
 
-export const register: Register = on => {
-  // One worker serializes its read-modify-write operations; per-session keys isolate different sessions.
-  let tail: Promise<unknown> = Promise.resolve()
-  const pending = new Set<string>()
-  async function transaction<T>(host: Host, fn: (db: Database, goal: Goal | undefined, session: string, now: number) => T | Promise<T>): Promise<T> {
-    const run = tail.then(async () => {
-      const session = await host.session.id()
-      if (!safeId(session)) throw new Error('Unsupported session ID')
-      const key = `goal-session-v2/${session}`
-      const saved = await host.store.get(key)
-      const value = saved ?? await host.store.get(LEGACY_KEY)
-      if (value !== undefined && (!object(value) || value.version !== 1)) throw new Error('Unsupported Goal store; preserve it and migrate explicitly')
-      const db = normalize(value)
-      // Import this session only. Never rewrite another process's legacy database.
-      for (const [id, record] of Object.entries(db.goals)) if (record.session_id !== session) delete db.goals[id]
-      for (const id of Object.keys(db.current_by_session)) if (id !== session) delete db.current_by_session[id]
-      for (const id of Object.keys(db.watcher_notifications_by_session)) if (id !== session) delete db.watcher_notifications_by_session[id]
-      const goal = db.goals[db.current_by_session[session]]
-      const result = await fn(db, goal, session, await host.clock.now())
-      await host.store.set(key, db)
-      status(host, db.goals[db.current_by_session[session]])
-      return result
-    })
-    tail = run.catch(() => undefined)
-    return run
-  }
-  const logFailure = (host: Host) => { host.ui.log('goal: host operation failed; no completion was inferred') }
-  async function queue(host: Host): Promise<void> {
-    const ticket = await transaction(host, (_db, goal) => {
-      if (!goal || goal.status !== 'active') return
-      const key = `${goal.id}:${goal.control_generation}`
-      if (pending.has(key)) return
-      pending.add(key)
-      return { key, id: goal.id, generation: goal.control_generation }
-    })
-    if (!ticket) return
-    host.clock.after(150, async () => {
-        try {
-          const prompt = await transaction(host, (_db, goal) => {
-            if (!goal || goal.id !== ticket.id || goal.status !== 'active' || goal.control_generation !== ticket.generation) return
-            return continuation(goal)
-          })
-          // Never hold the persistence queue while calling a hook that re-enters it.
-          if (prompt) await host.prompt.submit({ text: prompt })
-        } catch { logFailure(host) }
-        finally { pending.delete(ticket.key) }
-    })
-  }
+// Native admission follows the host only through module-level helper declarations.
+// One worker serializes its read-modify-write operations; per-session keys isolate different sessions.
+let tail: Promise<unknown> = Promise.resolve()
+const pending = new Set<string>()
+async function transaction<T>(host: Host, fn: (db: Database, goal: Goal | undefined, session: string, now: number) => T | Promise<T>): Promise<T> {
+  const run = tail.then(async () => {
+    const session = await host.session.id()
+    if (!safeId(session)) throw new Error('Unsupported session ID')
+    const key = `goal-session-v2/${session}`
+    const saved = await host.store.get(key)
+    const value = saved ?? await host.store.get(LEGACY_KEY)
+    if (value !== undefined && (!object(value) || value.version !== 1)) throw new Error('Unsupported Goal store; preserve it and migrate explicitly')
+    const db = normalize(value)
+    // Import this session only. Never rewrite another process's legacy database.
+    for (const [id, record] of Object.entries(db.goals)) if (record.session_id !== session) delete db.goals[id]
+    for (const id of Object.keys(db.current_by_session)) if (id !== session) delete db.current_by_session[id]
+    for (const id of Object.keys(db.watcher_notifications_by_session)) if (id !== session) delete db.watcher_notifications_by_session[id]
+    const goal = db.goals[db.current_by_session[session]]
+    const result = await fn(db, goal, session, await host.clock.now())
+    await host.store.set(key, db)
+    status(host, db.goals[db.current_by_session[session]])
+    return result
+  })
+  tail = run.catch(() => undefined)
+  return run
+}
+const logFailure = (host: Host) => { host.ui.log('goal: host operation failed; no completion was inferred') }
+async function queue(host: Host): Promise<void> {
+  const ticket = await transaction(host, (_db, goal) => {
+    if (!goal || goal.status !== 'active') return
+    const key = `${goal.id}:${goal.control_generation}`
+    if (pending.has(key)) return
+    pending.add(key)
+    return { key, id: goal.id, generation: goal.control_generation }
+  })
+  if (!ticket) return
+  host.clock.after(150, async () => {
+      try {
+        const prompt = await transaction(host, (_db, goal) => {
+          if (!goal || goal.id !== ticket.id || goal.status !== 'active' || goal.control_generation !== ticket.generation) return
+          return continuation(goal)
+        })
+        // Never hold the persistence queue while calling a hook that re-enters it.
+        if (prompt) await host.prompt.submit({ text: prompt })
+      } catch { logFailure(host) }
+      finally { pending.delete(ticket.key) }
+  })
+}
 
+export const register: Register = on => {
   on('session.start', async (host, event, next) => {
     for (const tool of tools) await host.tool.register(tool)
     const result = await next(event)
