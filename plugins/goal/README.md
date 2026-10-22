@@ -2,6 +2,8 @@
 
 Version **0.3.0** adds a durable agent registry and explicit joins to the community Goal adapter. It is separate from Claude Code's built-in `/goal` evaluator and from Context Guard's compaction hook.
 
+Version **0.3.1** makes UI status messages opt-in with `showStatus` (default `false`), preserves Goal execution, and includes native hook-module admission checks.
+
 ## Host requirements and installation
 
 This plugin targets hosts that implement the **hooks-module API**: `hooks/hooks.json` with `modules`, `register(on)`, `$.tool.register`, `$.store`, `$.clock`, `$.prompt.submit`, `agent.spawn`, and agent-aware turn events. A classic command-hook-only host cannot load this implementation. Check the installed host's generated `claude-code` declarations; do not assume every Claude Code or Agent SDK version has this API.
@@ -22,6 +24,24 @@ The plugin registers:
 - `mcp__goal__GetGoalStatus`: an on-demand registry/status snapshot.
 
 Missing module support means no plugin Goal was armed. Missing `$.agent.list()` is reported as degraded coverage rather than silently claiming full tracking.
+
+## Quiet status output
+
+The optional `Goal active · ...` UI status line is **off by default**. Some desktop/SDK hosts append every `$.ui.status` call as a `system/ui_status` transcript message rather than replacing a pinned line. Quiet mode makes no status calls, including empty clears, so routine Goal reads and updates do not add these messages. Existing transcript entries are not removed.
+
+This is a display preference only: Goal persistence, continuation prompts, agent/external-watcher waits, explicit pause, failure diagnostics and completion evidence gates remain enabled. Ask for `GetGoalStatus` when an on-demand snapshot is needed.
+
+To restore the optional status line, set this plugin's `showStatus` option to `true` in `/config`. For the local skills-folder installation, the equivalent user-settings fragment is:
+
+```json
+{
+  "pluginConfigs": {
+    "goal": { "options": { "showStatus": true } }
+  }
+}
+```
+
+Merge that fragment into existing settings, do not replace them. Marketplace installations use their qualified plugin ID. Set `showStatus` to `false` (or remove the override) to return to quiet output. Reload the plugin or restart the host session if its file watcher is not enabled. Quiet mode does not hide tool results, errors or the continuation prompts required to keep working.
 
 ## Parent work and explicit dependencies
 

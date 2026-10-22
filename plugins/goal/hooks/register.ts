@@ -8,6 +8,7 @@ import { tools } from './schemas.ts'
 const PREFIX = 'mcp__goal__'
 const LEGACY_KEY = 'goals-v1'
 const TTL = 7 * 24 * 60 * 60 * 1000
+let showStatus = false
 const json = (value: unknown) => ({ result: JSON.stringify(value) })
 const text = (x: unknown): string => typeof x === 'string' ? x.trim() : ''
 function visible(goal: Goal | undefined) {
@@ -20,6 +21,8 @@ function visible(goal: Goal | undefined) {
       result_received: r.delivered_generation === r.generation })) }
 }
 function status(host: Host, goal: Goal | undefined): void {
+  // Display only: desktop/SDK hosts may append each status call to the transcript.
+  if (!showStatus) return
   if (!goal || goal.status === 'complete') { host.ui.status(undefined); return }
   const agents = goal.agent_wait?.agent_ids ?? goal.dependencies
   const count = agents.filter(id => Object.hasOwn(goal.agents, id) && settled(goal.agents[id]) &&
@@ -93,7 +96,8 @@ async function queue(host: Host): Promise<void> {
   })
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  showStatus = options.showStatus === true
   on('session.start', async (host, event, next) => {
     for (const tool of tools) await host.tool.register(tool)
     const result = await next(event)

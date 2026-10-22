@@ -40,4 +40,4 @@ export type On = {
   <K extends keyof Events>(event: K, hook: Handler<K>): void
   <K extends keyof Events>(event: K, matcher: Partial<Events[K]>, hook: Handler<K>): void
 }
-export type Register = (on: On) => void
+export type Register = (on: On, options: Readonly<Record<string, unknown>>) => void

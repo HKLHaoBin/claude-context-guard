@@ -6,7 +6,7 @@
       "name": "goal",
       "source": "./plugins/goal",
       "description": "Host-specific durable Goal plugin with subagent-aware waits",
-      "version": "0.3.0"
+      "version": "0.3.1"
     }
   ]
 }

@@ -1,5 +1,13 @@
 {
   "name": "goal",
-  "version": "0.3.0",
-  "description": "Durable Goal execution with explicit subagent joins, run fencing and evidence gates"
+  "version": "0.3.1",
+  "description": "Durable Goal execution with explicit subagent joins, run fencing and evidence gates",
+  "userConfig": {
+    "showStatus": {
+      "type": "boolean",
+      "title": "Show Goal status messages",
+      "description": "Show the optional Goal status line. Disabled by default to avoid repeated ui_status messages in desktop and SDK hosts; Goal execution and status-query tools remain enabled.",
+      "default": false
+    }
+  }
 }

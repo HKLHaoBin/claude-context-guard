@@ -6,6 +6,7 @@ export function harness(options = {}) {
   const timers = []
   const accepted = []
   const logs = []
+  const statusMessages = []
   let agents = options.agents ?? []
   let now = 1000
   const clone = value => value === undefined ? undefined : structuredClone(value)
@@ -15,7 +16,7 @@ export function harness(options = {}) {
     clock: { now: async () => now, after: (ms, fn) => { timers.push(fn) } },
     agent: options.noAgentList ? undefined : { list: async () => clone(agents) },
     tool: { register: async () => undefined },
-    ui: { status: () => undefined, log: text => { logs.push(text) } },
+    ui: { status: text => { statusMessages.push(text) }, log: text => { logs.push(text) } },
     prompt: { submit: async ({ text }) => emit('prompt.submit', { text, origin: { kind: 'plugin', name: 'goal' } }) },
   }
   register((name, matcher, hook) => {
@@ -23,7 +24,7 @@ export function harness(options = {}) {
     const handlers = hooks.get(name) ?? []
     handlers.push({ matcher, hook })
     hooks.set(name, handlers)
-  })
+  }, options.pluginOptions ?? {})
   async function emit(name, input, core) {
     const chain = hooks.get(name) ?? []
     async function run(index, event) {
@@ -66,7 +67,7 @@ export function harness(options = {}) {
     return emit('prompt.submit', { text: `<task-notification><task-id>${id}</task-id><status>${status}</status>${toolUseId ? `<tool-use-id>${toolUseId}</tool-use-id>` : ''}</task-notification>`,
       origin: { kind: 'task-notification' } })
   }
-  return { host, store, accepted, logs, emit, call, start, status, create, spawn, end, notify,
+  return { host, store, accepted, logs, statusMessages, emit, call, start, status, create, spawn, end, notify,
     setAgents: value => { agents = value },
     advance: async () => { now += 150; const batch = timers.splice(0); for (const fn of batch) await fn() },
     turn: (id = 'parent-turn') => emit('turn.complete', { turnId: id, reason: 'answer', answer: 'parent', durationMs: 10 }),

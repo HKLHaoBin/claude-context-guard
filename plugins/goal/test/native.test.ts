@@ -7,6 +7,7 @@ const STATUS = 'mcp__goal__GetGoalStatus'
 
 function setup(on: On) {
   const names: string[] = []
+  const statusMessages: (string | undefined)[] = []
   mock.store(on)
   const clock = mock.clock(on, { now: 1000 })
   on('session.id', () => ({ value: 'native-test-session' }))
@@ -22,9 +23,9 @@ function setup(on: On) {
   })
   on('tool.describe', ($, e) => ({ description: e.description, isDeferred: e.isDeferred }))
   on('turn.complete', ($, e) => ({ text: e.answer, usage: e.usage }))
-  on('ui.status', () => ({ value: undefined }))
+  on('ui.status', ($, e) => { statusMessages.push(e.text); return { value: undefined } })
   on('ui.log', () => ({ value: undefined }))
-  return { names, clock }
+  return { names, clock, statusMessages }
 }
 function result(call: { result?: unknown }): Record<string, any> {
   if (typeof call.result !== 'string') throw new Error('Missing registered Goal tool result')
@@ -74,4 +75,24 @@ test('native timer continues active work but does not continue a paused Goal', a
   await $.turn.complete({ turnId: 'native-paused', answer: 'Keep pause', reason: 'answer', durationMs: 1, isAborted: false })
   await clock.advance(150)
   expect(prompts.length).toBe(1)
+})
+
+
+test('native Goal tools stay silent without disabling continuation or completion', async ($, on) => {
+  const { clock, statusMessages } = setup(on)
+  const prompts: string[] = []
+  on('prompt.submit', ($, e) => {
+    prompts.push(e.text)
+    return { text: e.text, context: e.context, origin: e.origin }
+  })
+  await $.session.start({ cwd: 'C:/goal-test', surface: null, isInteractive: false })
+  await $.tool.call({ tool: CREATE, objective: 'Verify quiet Goal execution' })
+  expect(result(await $.tool.call({ tool: STATUS })).goal.status).toBe('active')
+  await $.turn.complete({ turnId: 'native-quiet', answer: 'Next step', reason: 'answer', durationMs: 1, isAborted: false })
+  await clock.advance(150)
+  expect(prompts.length).toBe(1)
+  const completed = result(await $.tool.call({ tool: UPDATE, status: 'complete',
+    summary: 'Verified quiet execution', evidence: ['Continuation submitted and status query remained available'] }))
+  expect(completed.goal.status).toBe('complete')
+  expect(statusMessages.length).toBe(0)
 })
